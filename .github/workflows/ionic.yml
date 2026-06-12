@@ -3,64 +3,66 @@ name: Ionic
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # bisa trigger manual dari GitHub UI
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      # 4. Build web assets (vite build)
       - name: Build web
         run: npm run build
 
-      # 5. Setup Java (dibutuhkan Gradle/Android)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
 
-      # 6. Setup Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 7. Sync Capacitor ke Android
       - name: Capacitor sync
         run: npx cap sync android
 
-      # 8. Inject keystore dari Termux (SHA-1 sudah terdaftar di Google Cloud)
+      # Inject keystore ke SEMUA lokasi yang mungkin dipakai Gradle
       - name: Setup debug keystore
         run: |
           mkdir -p ~/.android
           echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
+          cp ~/.android/debug.keystore android/app/debug.keystore
+          cp ~/.android/debug.keystore android/debug.keystore
 
-      # 9. Beri permission ke gradlew
+      # Verifikasi SHA-1 (cek di log Actions)
+      - name: Verify keystore SHA-1
+        run: |
+          echo "=== SHA-1 dari keystore yang dipakai ==="
+          keytool -list -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey \
+            -storepass android \
+            -keypass android 2>/dev/null | grep SHA1
+
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # 10. Build APK debug (tidak perlu keystore)
       - name: Build Debug APK
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon
 
-      # 11. Upload APK sebagai artifact (bisa didownload dari GitHub)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
