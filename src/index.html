@@ -1140,15 +1140,40 @@ async function handleGoogleLogin() {
   try {
     const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
 if (isNative) {
-  console.log("=== NATIVE LOGIN ===");
-  console.log("Capacitor:", window.Capacitor);
-  console.log("Plugins:", window.Capacitor?.Plugins);
-  console.log("GoogleAuth plugin:", window.Capacitor?.Plugins?.GoogleAuth);
-  
-  const GoogleAuth = window.Capacitor.Plugins.GoogleAuth;
-  if (!GoogleAuth) {
-    showAuthError("Plugin GoogleAuth tidak ditemukan");
-    return;
+  try {
+    const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+    alert("Plugin: " + (GoogleAuth ? "ADA" : "TIDAK ADA"));
+    
+    if (!GoogleAuth) {
+      showAuthError("Plugin tidak ditemukan");
+      return;
+    }
+    
+    await GoogleAuth.initialize({
+      clientId: GOOGLE_CLIENT_ID,
+      scopes: ['profile', 'email'],
+      grantOfflineAccess: true
+    });
+    alert("Initialize OK");
+    
+    const googleUser = await GoogleAuth.signIn();
+    alert("SignIn OK: " + JSON.stringify(googleUser));
+    
+    const user = {
+      google_id: googleUser.id,
+      email: googleUser.email,
+      name: googleUser.displayName || googleUser.name
+    };
+    await fetch(`${API_BASE_URL}/auth/google-native`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(user)
+    });
+    saveUser(user);
+    closeAuthModal();
+    updateHeaderUI(user);
+  } catch(err) {
+    alert("ERROR: " + err.message + " | " + JSON.stringify(err));
   }
   await GoogleAuth.initialize({
         clientId: GOOGLE_CLIENT_ID,
