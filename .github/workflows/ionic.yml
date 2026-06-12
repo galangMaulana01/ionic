@@ -44,17 +44,23 @@ jobs:
       - name: Capacitor sync
         run: npx cap sync android
 
-      # 8. Beri permission ke gradlew
+      # 8. Inject keystore dari Termux (SHA-1 sudah terdaftar di Google Cloud)
+      - name: Setup debug keystore
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
+
+      # 9. Beri permission ke gradlew
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # 9. Build APK debug (tidak perlu keystore)
+      # 10. Build APK debug (tidak perlu keystore)
       - name: Build Debug APK
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon
 
-      # 10. Upload APK sebagai artifact (bisa didownload dari GitHub)
+      # 11. Upload APK sebagai artifact (bisa didownload dari GitHub)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
