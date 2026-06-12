@@ -1,13 +1,17 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  </head>
-  <body>
-    <h1 class="text-3xl font-bold underline">
-      Hello world!
-    </h1>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="text-white">
+  <button id="loginBtn" class="bg-sky-500 p-2 rounded">Login with Google</button>
+  <div id="userInfo" style="display:none;">
+    <p>Name: <span id="userName"></span></p>
+    <p>Email: <span id="userEmail"></span></p>
+    <button id="logoutBtn" class="bg-red-500 p-2 rounded">Logout</button>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
 </html>
