@@ -4,4 +4,5 @@
     <string name="title_activity_main">indoscore</string>
     <string name="package_name">com.indoscore.app</string>
     <string name="custom_url_scheme">com.indoscore.app</string>
+    <string name="server_client_id">304025860925-ejc1k9quboqghc6m53njs9k67ebnq7cc.apps.googleusercontent.com</string>
 </resources>
