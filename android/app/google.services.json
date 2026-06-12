@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "304025860925",
+    "project_id": "ionic-499116",
+    "storage_bucket": "ionic-499116.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:304025860925:android:6bbe7bf623e053407f2354",
+        "android_client_info": {
+          "package_name": "com.indoscore.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "304025860925-d9bmoatf3q6it9v2shpnn358buo16tb2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.indoscore.app",
+            "certificate_hash": "dd90212cd71fc1b2c5e111933fd1c4c33ce0b9ae"
+          }
+        },
+        {
+          "client_id": "304025860925-ejc1k9quboqghc6m53njs9k67ebnq7cc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-5hrBydTBTNXNwAgd1SZ_vGNTnc17AT8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "304025860925-ejc1k9quboqghc6m53njs9k67ebnq7cc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
