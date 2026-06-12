@@ -1120,7 +1120,7 @@ window.addEventListener('DOMContentLoaded', () => {
       usingFallback = true;
     }
   }
-  
+
 async function handleGoogleLogin() {
   const errorDiv = document.getElementById("auth-error");
   const btn = document.getElementById("btn-google-login");
@@ -1139,42 +1139,93 @@ async function handleGoogleLogin() {
 
   try {
     const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
-if (isNative) {
-  try {
-    const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
-    alert("Plugin: " + (GoogleAuth ? "ADA" : "TIDAK ADA"));
     
-    if (!GoogleAuth) {
-      showAuthError("Plugin tidak ditemukan");
-      return;
+    if (isNative) {
+      // ===== ANDROID / NATIVE =====
+      const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+      
+      if (!GoogleAuth) {
+        showAuthError("Plugin tidak ditemukan");
+        btn.disabled = false;
+        btn.innerHTML = originalBtnHTML;
+        return;
+      }
+
+      try {
+        // DI ANDROID: Langsung signIn! Jangan panggil .initialize() lagi.
+        // Biarkan Android membaca dari strings.xml & google-services.json
+        const googleUser = await GoogleAuth.signIn();
+        
+        const user = {
+          google_id: googleUser.id,
+          email: googleUser.email,
+          name: googleUser.displayName || googleUser.name
+        };
+        
+        await fetch(`${API_BASE_URL}/auth/google-native`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(user)
+        });
+        
+        saveUser(user);
+        closeAuthModal();
+        updateHeaderUI(user);
+      } catch(err) {
+        console.error("Native Auth Error:", err);
+        showAuthError("Gagal masuk. Error: " + (err.message || "Dibatalkan"));
+      }
+
+    } else {
+      // ===== BROWSER / WEB =====
+      await loadGoogleScript();
+      window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'profile email openid',
+        callback: async (tokenResponse) => {
+          try {
+            if (tokenResponse.error) throw new Error(tokenResponse.error);
+            const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+            });
+            const profile = await profileRes.json();
+            const user = {
+              google_id: profile.sub,
+              email: profile.email,
+              name: profile.name
+            };
+            
+            await fetch(`${API_BASE_URL}/auth/google-native`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(user)
+            });
+            saveUser(user);
+            closeAuthModal();
+            updateHeaderUI(user);
+          } catch (err) {
+            console.error("Login error (browser callback):", err);
+            showAuthError("Login gagal, coba lagi");
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalBtnHTML;
+          }
+        },
+      }).requestAccessToken();
+      return; // Stop di sini karena callback async
     }
-    
-    await GoogleAuth.initialize({
-      clientId: GOOGLE_CLIENT_ID,
-      scopes: ['profile', 'email'],
-      grantOfflineAccess: true
-    });
-    alert("Initialize OK");
-    
-    const googleUser = await GoogleAuth.signIn();
-    alert("SignIn OK: " + JSON.stringify(googleUser));
-    
-    const user = {
-      google_id: googleUser.id,
-      email: googleUser.email,
-      name: googleUser.displayName || googleUser.name
-    };
-    await fetch(`${API_BASE_URL}/auth/google-native`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(user)
-    });
-    saveUser(user);
-    closeAuthModal();
-    updateHeaderUI(user);
-  } catch(err) {
-    alert("ERROR: " + err.message + " | " + JSON.stringify(err));
+
+  } catch (err) {
+    console.error("Login outer error:", err);
+    showAuthError("Login gagal, coba lagi");
   }
+
+  // Reset tombol jika error (jika sukses, modal sudah tertutup)
+  btn.disabled = false;
+  btn.innerHTML = originalBtnHTML;
+}
+  
+    
   await GoogleAuth.initialize({
         clientId: GOOGLE_CLIENT_ID,
         scopes: ['profile', 'email'],
