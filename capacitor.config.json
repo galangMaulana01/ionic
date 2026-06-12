@@ -5,9 +5,7 @@
   "plugins": {
     "FirebaseAuthentication": {
       "skipNativeAuth": false,
-      "providers": ["google.com"]
-    },
-    "GoogleAuth": {
+      "providers": ["google.com"],
       "androidClientId": "304025860925-lhf78thaj8p1ncq8sqavk5vktsqcumfd.apps.googleusercontent.com"
     }
   }
