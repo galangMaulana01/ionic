@@ -999,7 +999,6 @@ window.addEventListener('DOMContentLoaded', () => {
   function loadGoogleScript() {
     return new Promise((resolve, reject) => {
       if (window.google?.accounts?.id) return resolve();
-      
       const script = document.createElement('script');
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
@@ -1011,100 +1010,110 @@ window.addEventListener('DOMContentLoaded', () => {
       document.head.appendChild(script);
     });
   }
-  
-  
+
   // ==================== KONFIGURASI AUTH ====================
   const GOOGLE_CLIENT_ID = "304025860925-ejc1k9quboqghc6m53njs9k67ebnq7cc.apps.googleusercontent.com";
-  
+
   // ==================== STATE MANAGEMENT ====================
   const AUTH_KEY = "indoscore_user";
-  
+  let googleAuthInitialized = false;
+
   function getStoredUser() {
     try {
       const data = localStorage.getItem(AUTH_KEY);
       return data ? JSON.parse(data) : null;
-    } catch (e) {
-      return null;
+    } catch (e) { return null; }
+  }
+
+  function saveUser(user) { localStorage.setItem(AUTH_KEY, JSON.stringify(user)); }
+  function clearUser() { localStorage.removeItem(AUTH_KEY); }
+  function isModalDismissedThisSession() { return sessionStorage.getItem("auth_modal_dismissed") === "true"; }
+  function setModalDismissed() { sessionStorage.setItem("auth_modal_dismissed", "true"); }
+
+  // ==================== HEADER UI ====================
+  function updateHeaderUI(user) {
+    const authPlaceholder = document.getElementById("auth-placeholder");
+    if (!authPlaceholder) return;
+    if (user) {
+      const firstName = user.name ? user.name.split(" ")[0] : "User";
+      authPlaceholder.innerHTML = `
+        <div id="auth-header-section" class="relative">
+          <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserMenu()">
+            <div class="w-8 h-8 rounded-full bg-merah flex items-center justify-center text-white font-bold text-sm">
+              ${firstName.charAt(0).toUpperCase()}
+            </div>
+            <span class="text-sm font-semibold text-white">${firstName}</span>
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+          <div id="user-dropdown" class="hidden absolute right-0 top-10 bg-[#1f1f1f] border border-gray-700 rounded-xl shadow-xl z-50 py-1 w-36 text-sm">
+            <button onclick="handleLogout()" class="block w-full text-left px-4 py-2 hover:bg-gray-800 text-gray-300 font-medium">
+              Keluar
+            </button>
+          </div>
+        </div>`;
+    } else {
+      authPlaceholder.innerHTML = `
+        <div id="auth-header-section">
+          <button onclick="openAuthModal()" class="text-xs font-bold bg-merah text-white px-4 py-2 rounded-xl transition active:scale-95">
+            Masuk
+          </button>
+        </div>`;
     }
   }
-  
-  function saveUser(user) {
-    localStorage.setItem(AUTH_KEY, JSON.stringify(user));
-  }
-  
-  function clearUser() {
-    localStorage.removeItem(AUTH_KEY);
-  }
-  
-  function isModalDismissedThisSession() {
-    return sessionStorage.getItem("auth_modal_dismissed") === "true";
-  }
-  
-  function setModalDismissed() {
-    sessionStorage.setItem("auth_modal_dismissed", "true");
-  }
-  
- function updateHeaderUI(user) {
-  const authPlaceholder = document.getElementById("auth-placeholder");
-  if (!authPlaceholder) return;
-  
-  if (user) {
-    const firstName = user.name ? user.name.split(" ")[0] : "User";
-    authPlaceholder.innerHTML = `
-      <div id="auth-header-section" class="relative">
-        <div class="flex items-center gap-2 cursor-pointer" onclick="toggleUserMenu()">
-          <div class="w-8 h-8 rounded-full bg-merah flex items-center justify-center text-white font-bold text-sm">
-            ${firstName.charAt(0).toUpperCase()}
-          </div>
-          <span class="text-sm font-semibold text-white">${firstName}</span>
-          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-          </svg>
-        </div>
-        <div id="user-dropdown" class="hidden absolute right-0 top-10 bg-[#1f1f1f] border border-gray-700 rounded-xl shadow-xl z-50 py-1 w-36 text-sm">
-          <button onclick="handleLogout()" class="block w-full text-left px-4 py-2 hover:bg-gray-800 text-gray-300 font-medium">
-            Keluar
-          </button>
-        </div>
-      </div>
-    `;
-  } else {
-    authPlaceholder.innerHTML = `
-      <div id="auth-header-section">
-        <button onclick="openAuthModal()" class="text-xs font-bold bg-merah text-white px-4 py-2 rounded-xl transition active:scale-95">
-          Masuk
-        </button>
-      </div>
-    `;
-  }
-}
-  
+
   function toggleUserMenu() {
     const dropdown = document.getElementById("user-dropdown");
     if (dropdown) dropdown.classList.toggle("hidden");
   }
-  
+
   document.addEventListener("click", function(e) {
     const dropdown = document.getElementById("user-dropdown");
     if (dropdown && !dropdown.classList.contains("hidden") && !e.target.closest("#auth-header-section")) {
       dropdown.classList.add("hidden");
     }
   });
-  
+
   // ==================== MODAL CONTROL ====================
   function openAuthModal() {
     document.getElementById("auth-modal-overlay").classList.remove("hidden");
     document.getElementById("auth-error").classList.add("hidden");
   }
-  
+
   function closeAuthModal() {
     document.getElementById("auth-modal-overlay").classList.add("hidden");
   }
-  
-  // ==================== GOOGLE SIGN-IN ====================
-  let usingFallback = false; 
-  
+
+  // ==================== INIT NATIVE GOOGLE AUTH (SEKALI SAJA SAAT BOOT) ====================
+  async function initNativeGoogleAuth() {
+    const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
+    if (!isNative) return; // Hanya jalan di Android/iOS, skip di web
+
+    const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+    if (!GoogleAuth) {
+      console.warn("⚠️ Plugin GoogleAuth tidak ditemukan di native bridge.");
+      return;
+    }
+
+    try {
+      await GoogleAuth.initialize({
+        clientId: GOOGLE_CLIENT_ID,
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true
+      });
+      googleAuthInitialized = true;
+      console.log("✅ Native GoogleAuth berhasil di-initialize.");
+    } catch (e) {
+      console.error("❌ Native GoogleAuth initialize gagal:", e);
+    }
+  }
+
+  // ==================== INIT WEB ONE TAP (HANYA DI BROWSER) ====================
   async function initGoogleOneTap() {
+    const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
+    if (isNative) return; // Skip di native, ini khusus web
+
     try {
       await loadGoogleScript();
       google.accounts.id.initialize({
@@ -1113,145 +1122,132 @@ window.addEventListener('DOMContentLoaded', () => {
         auto_select: false,
         context: "signin"
       });
-      usingFallback = false;
-      console.log("✅ Google One Tap siap");
+      console.log("✅ Google One Tap (web) siap.");
     } catch (err) {
-      console.warn("⚠️ Google One Tap tidak tersedia, akan pakai fallback redirect:", err.message);
-      usingFallback = true;
+      console.warn("⚠️ Google One Tap tidak tersedia:", err.message);
     }
   }
 
-async function handleGoogleLogin() {
-  const errorDiv = document.getElementById("auth-error");
-  const btn = document.getElementById("btn-google-login");
-  errorDiv.classList.add("hidden");
+  // ==================== HANDLE LOGIN (TOMBOL DIKLIK) ====================
+  async function handleGoogleLogin() {
+    const btn = document.getElementById("btn-google-login");
+    const errorDiv = document.getElementById("auth-error");
+    errorDiv.classList.add("hidden");
 
-  // Loading state jalankan spinner animasi
-  const originalBtnHTML = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = `
-    <svg class="animate-spin w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-    </svg>
-    <span class="text-gray-500">Menghubungkan...</span>
-  `;
+    const originalBtnHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `
+      <svg class="animate-spin w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+      </svg>
+      <span class="text-gray-500">Menghubungkan...</span>`;
 
-  const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
+    const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
 
-  if (isNative) {
-    // ==========================================
-    // LAYER 1: PROSES NATIVE (ANDROID / IOS)
-    // ==========================================
-    const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
-    
-    if (!GoogleAuth) {
-      alert("Error: Plugin GoogleAuth tidak terdeteksi di objek Capacitor!");
-      btn.disabled = false;
-      btn.innerHTML = originalBtnHTML;
-      return;
+    if (isNative) {
+      // ==========================================
+      // LAYER 1: NATIVE ANDROID / iOS
+      // ==========================================
+      const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+
+      if (!GoogleAuth) {
+        alert("Error: Plugin GoogleAuth tidak terdeteksi!");
+        btn.disabled = false; btn.innerHTML = originalBtnHTML; return;
+      }
+
+      // Fallback: jika karena suatu alasan initialize() belum jalan saat boot
+      if (!googleAuthInitialized) {
+        console.warn("⚠️ GoogleAuth belum ter-initialize, mencoba sekarang...");
+        await initNativeGoogleAuth();
+      }
+
+      try {
+        // signIn() saja — initialize() TIDAK dipanggil di sini
+        const googleUser = await GoogleAuth.signIn();
+
+        const user = {
+          google_id: googleUser.id,
+          email: googleUser.email,
+          name: googleUser.displayName || googleUser.name
+        };
+
+        await fetch(`${API_BASE_URL}/auth/google-native`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(user)
+        });
+
+        saveUser(user);
+        closeAuthModal();
+        updateHeaderUI(user);
+
+      } catch (err) {
+        const errorDetail = JSON.stringify(err, null, 2);
+        const errorMessage = err.message || "Tidak ada pesan dari SDK Google.";
+        alert(
+          "🚨 DETAIL ERROR NATIVE 🚨\n\n" +
+          "Objek Mentah:\n" + errorDetail +
+          "\n\nPesan:\n" + errorMessage
+        );
+        console.error("Native Auth Error:", err);
+        showAuthError("Login gagal. Kode: " + (err.code ?? errorMessage));
+      }
+
+    } else {
+      // ==========================================
+      // LAYER 2: BROWSER / WEB
+      // ==========================================
+      try {
+        await loadGoogleScript();
+        window.google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: 'profile email openid',
+          callback: async (tokenResponse) => {
+            try {
+              if (tokenResponse.error) throw new Error(tokenResponse.error);
+
+              const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+              });
+              const profile = await profileRes.json();
+
+              const user = {
+                google_id: profile.sub,
+                email: profile.email,
+                name: profile.name
+              };
+
+              await fetch(`${API_BASE_URL}/auth/google-native`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(user)
+              });
+
+              saveUser(user);
+              closeAuthModal();
+              updateHeaderUI(user);
+            } catch (err) {
+              console.error("Browser token callback error:", err);
+              showAuthError("Login web gagal diproses.");
+            } finally {
+              btn.disabled = false; btn.innerHTML = originalBtnHTML;
+            }
+          },
+        }).requestAccessToken();
+        return; // Tahan alur async
+
+      } catch (err) {
+        console.error("Web Initializer Error:", err);
+        showAuthError("Gagal memuat SDK Google Web.");
+      }
     }
 
-    try {
-      // 1. Inisialisasi Kunci Kredensial Web Client ID
-      await GoogleAuth.initialize({
-        clientId: GOOGLE_CLIENT_ID,
-        scopes: ['profile', 'email'],
-        grantOfflineAccess: true
-      });
-      
-      // 2. Eksekusi Login Google secara Native
-      const googleUser = await GoogleAuth.signIn();
-      
-      const user = {
-        google_id: googleUser.id,
-        email: googleUser.email,
-        name: googleUser.displayName || googleUser.name
-      };
-      
-      // 3. Setor data ke Backend kamu
-      await fetch(`${API_BASE_URL}/auth/google-native`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(user)
-      });
-      
-      // 4. Sukses, simpan session dan bersihkan UI
-      saveUser(user);
-      closeAuthModal();
-      updateHeaderUI(user);
-
-    } catch (err) {
-      // Pembongkar Error Otomatis (Muncul Pop-up Detail di Layar HP)
-      const errorDetail = JSON.stringify(err, null, 2);
-      const errorMessage = err.message || "Tidak ada pesan teks dari SDK Google.";
-      
-      alert(
-        "🚨 DETAIL ERROR NATIVE LOGIC 🚨\n\n" + 
-        "Objek Mentah (JSON):\n" + errorDetail + 
-        "\n\nPesan Utama (Message):\n" + errorMessage
-      );
-      
-      console.error("Native Auth Error Detail:", err);
-      showAuthError("Gagal login: Periksa pop-up sistem.");
-    }
-
-  } else {
-    // ==========================================
-    // LAYER 2: PROSES BROWSER / WEB TESTING
-    // ==========================================
-    try {
-      await loadGoogleScript();
-      window.google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: 'profile email openid',
-        callback: async (tokenResponse) => {
-          try {
-            if (tokenResponse.error) throw new Error(tokenResponse.error);
-            
-            const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-              headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-            });
-            const profile = await profileRes.json();
-            
-            const user = {
-              google_id: profile.sub,
-              email: profile.email,
-              name: profile.name
-            };
-            
-            await fetch(`${API_BASE_URL}/auth/google-native`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(user)
-            });
-            
-            saveUser(user);
-            closeAuthModal();
-            updateHeaderUI(user);
-          } catch (err) {
-            console.error("Browser token callback error:", err);
-            showAuthError("Login web gagal diproses.");
-          } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalBtnHTML;
-          }
-        },
-      }).requestAccessToken();
-      return; // Menahan alur async agar tidak langsung lari ke bawah
-
-    } catch (err) {
-      console.error("Web Initializer Error:", err);
-      showAuthError("Gagal memuat SDK Google Web.");
-    }
+    btn.disabled = false;
+    btn.innerHTML = originalBtnHTML;
   }
 
-  // Mengembalikan tombol ke sedia kala jika alur keluar dari try/catch
-  btn.disabled = false;
-  btn.innerHTML = originalBtnHTML;
-}
-
-    
+  // ==================== CALLBACK WEB ONE TAP ====================
   function handleGoogleResponse(response) {
     if (response.credential) {
       authenticateWithBackend(response.credential);
@@ -1259,24 +1255,17 @@ async function handleGoogleLogin() {
       showAuthError("Gagal mendapatkan kredensial dari Google.");
     }
   }
-  
+
   async function authenticateWithBackend(idToken) {
-    const errorDiv = document.getElementById("auth-error");
-    errorDiv.classList.add("hidden");
-    
+    document.getElementById("auth-error").classList.add("hidden");
     try {
       const res = await fetch(`${API_BASE_URL}/auth/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_token: idToken })
       });
-      
       const data = await res.json();
-      
-      if (!res.ok || !data.success) {
-        throw new Error(data.detail || "Login gagal");
-      }
-      
+      if (!res.ok || !data.success) throw new Error(data.detail || "Login gagal");
       saveUser(data.user);
       closeAuthModal();
       updateHeaderUI(data.user);
@@ -1284,13 +1273,12 @@ async function handleGoogleLogin() {
       showAuthError(error.message);
     }
   }
-  
+
   function showAuthError(message) {
-    const errorDiv = document.getElementById("auth-error");
     document.getElementById("auth-error-text").textContent = message;
-    errorDiv.classList.remove("hidden");
+    document.getElementById("auth-error").classList.remove("hidden");
   }
-  
+
   // ==================== LOGOUT ====================
   function handleLogout() {
     clearUser();
@@ -1298,8 +1286,8 @@ async function handleGoogleLogin() {
     const dropdown = document.getElementById("user-dropdown");
     if (dropdown) dropdown.classList.add("hidden");
   }
-  
-  // ==================== HANDLE REDIRECT FROM FALLBACK ====================
+
+  // ==================== HANDLE REDIRECT FALLBACK ====================
   function handleAuthRedirect() {
     const hash = window.location.hash;
     if (hash.includes("auth_success=")) {
@@ -1307,13 +1295,9 @@ async function handleGoogleLogin() {
         const userData = JSON.parse(hash.split("auth_success=")[1].split("&")[0]);
         saveUser(userData);
         updateHeaderUI(userData);
-        // Bersihkan hash
         history.replaceState(null, null, " ");
-        // Tutup modal jika terbuka
         closeAuthModal();
-      } catch (e) {
-        console.error("Gagal parse user data dari redirect:", e);
-      }
+      } catch (e) { console.error("Gagal parse user data dari redirect:", e); }
     } else if (hash.includes("auth_error=")) {
       const errorMsg = decodeURIComponent(hash.split("auth_error=")[1].split("&")[0]);
       showAuthError(errorMsg);
@@ -1321,42 +1305,41 @@ async function handleGoogleLogin() {
       openAuthModal();
     }
   }
-  
-  // ==================== INITIALIZATION ====================
+
+  // ==================== INIT AUTH ====================
   function initAuth() {
-    // Cek apakah ada data dari redirect fallback
     handleAuthRedirect();
-    
     const existingUser = getStoredUser();
     updateHeaderUI(existingUser);
-    
+
     if (!existingUser && !isModalDismissedThisSession()) {
-      setTimeout(() => {
-        if (!getStoredUser()) openAuthModal();
-      }, 7000);
+      setTimeout(() => { if (!getStoredUser()) openAuthModal(); }, 7000);
     }
-    
-    // Inisialisasi Google One Tap (atau deteksi fallback)
+
+    // One Tap hanya di web
     initGoogleOneTap().catch(() => {});
-    
+
     document.getElementById("btn-google-login")?.addEventListener("click", handleGoogleLogin);
     document.getElementById("btn-skip-auth")?.addEventListener("click", () => {
-      setModalDismissed();
-      closeAuthModal();
+      setModalDismissed(); closeAuthModal();
     });
-    
     document.getElementById("auth-modal-overlay")?.addEventListener("click", function(e) {
-      if (e.target === this) {
-        setModalDismissed();
-        closeAuthModal();
-      }
+      if (e.target === this) { setModalDismissed(); closeAuthModal(); }
     });
   }
-  
+
+  // ==================== BOOT SEQUENCE ====================
+  // initNativeGoogleAuth() dipanggil DULUAN & SEKALI, sebelum initAuth()
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initAuth);
+    document.addEventListener("DOMContentLoaded", async () => {
+      await initNativeGoogleAuth();
+      initAuth();
+    });
   } else {
-    initAuth();
+    (async () => {
+      await initNativeGoogleAuth();
+      initAuth();
+    })();
   }
 </script>
 </body>
