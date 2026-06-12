@@ -1152,8 +1152,14 @@ async function handleGoogleLogin() {
       }
 
       try {
-        // DI ANDROID: Langsung signIn! Jangan panggil .initialize() lagi.
-        // Biarkan Android membaca dari strings.xml & google-services.json
+        // KITA KEMBALIKAN INITIALIZE-NYA (Wajib ternyata bro!)
+        await GoogleAuth.initialize({
+          clientId: GOOGLE_CLIENT_ID,
+          scopes: ['profile', 'email'],
+          grantOfflineAccess: true
+        });
+        
+        // Baru kita panggil signIn
         const googleUser = await GoogleAuth.signIn();
         
         const user = {
