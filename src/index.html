@@ -1139,11 +1139,18 @@ async function handleGoogleLogin() {
 
   try {
     const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
-
-    if (isNative) {
-      // ===== NATIVE APK =====
-      const GoogleAuth = window.Capacitor.Plugins.GoogleAuth;
-      await GoogleAuth.initialize({
+if (isNative) {
+  console.log("=== NATIVE LOGIN ===");
+  console.log("Capacitor:", window.Capacitor);
+  console.log("Plugins:", window.Capacitor?.Plugins);
+  console.log("GoogleAuth plugin:", window.Capacitor?.Plugins?.GoogleAuth);
+  
+  const GoogleAuth = window.Capacitor.Plugins.GoogleAuth;
+  if (!GoogleAuth) {
+    showAuthError("Plugin GoogleAuth tidak ditemukan");
+    return;
+  }
+  await GoogleAuth.initialize({
         clientId: GOOGLE_CLIENT_ID,
         scopes: ['profile', 'email'],
         grantOfflineAccess: true
