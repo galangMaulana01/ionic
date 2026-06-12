@@ -1224,78 +1224,7 @@ async function handleGoogleLogin() {
   btn.disabled = false;
   btn.innerHTML = originalBtnHTML;
 }
-  
     
-  await GoogleAuth.initialize({
-        clientId: GOOGLE_CLIENT_ID,
-        scopes: ['profile', 'email'],
-        grantOfflineAccess: true
-      });
-      const googleUser = await GoogleAuth.signIn();
-      const user = {
-        google_id: googleUser.id,
-        email: googleUser.email,
-        name: googleUser.displayName || googleUser.name
-      };
-      await fetch(`${API_BASE_URL}/auth/google-native`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(user)
-      });
-      saveUser(user);
-      closeAuthModal();
-      updateHeaderUI(user);
-
-    } else {
-      // ===== BROWSER =====
-      await loadGoogleScript();
-      window.google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: 'profile email openid',
-        callback: async (tokenResponse) => {
-          try {
-            if (tokenResponse.error) throw new Error(tokenResponse.error);
-            // Ambil profil user dari Google
-            const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-              headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-            });
-            const profile = await profileRes.json();
-            const user = {
-              google_id: profile.sub,
-              email: profile.email,
-              name: profile.name
-            };
-            // Simpan ke backend
-            await fetch(`${API_BASE_URL}/auth/google-native`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(user)
-            });
-            saveUser(user);
-            closeAuthModal();
-            updateHeaderUI(user);
-          } catch (err) {
-            console.error("Login error (browser callback):", err);
-            showAuthError("Login gagal, coba lagi");
-          } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalBtnHTML;
-          }
-        },
-      }).requestAccessToken();
-      // Return di sini karena callback async — reset btn di dalam callback
-      return;
-    }
-
-  } catch (err) {
-    console.error("Login error:", err);
-    showAuthError("Login gagal, coba lagi");
-  }
-
-  btn.disabled = false;
-  btn.innerHTML = originalBtnHTML;
-}
-  
   function handleGoogleResponse(response) {
     if (response.credential) {
       authenticateWithBackend(response.credential);
