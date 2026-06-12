@@ -1126,7 +1126,7 @@ async function handleGoogleLogin() {
   const btn = document.getElementById("btn-google-login");
   errorDiv.classList.add("hidden");
 
-  // Loading state
+  // Loading state jalankan spinner animasi
   const originalBtnHTML = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = `
@@ -1137,53 +1137,70 @@ async function handleGoogleLogin() {
     <span class="text-gray-500">Menghubungkan...</span>
   `;
 
-  try {
-    const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
+  const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
+
+  if (isNative) {
+    // ==========================================
+    // LAYER 1: PROSES NATIVE (ANDROID / IOS)
+    // ==========================================
+    const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
     
-    if (isNative) {
-      // ===== ANDROID / NATIVE =====
-      const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+    if (!GoogleAuth) {
+      alert("Error: Plugin GoogleAuth tidak terdeteksi di objek Capacitor!");
+      btn.disabled = false;
+      btn.innerHTML = originalBtnHTML;
+      return;
+    }
+
+    try {
+      // 1. Inisialisasi Kunci Kredensial Web Client ID
+      await GoogleAuth.initialize({
+        clientId: GOOGLE_CLIENT_ID,
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true
+      });
       
-      if (!GoogleAuth) {
-        showAuthError("Plugin tidak ditemukan");
-        btn.disabled = false;
-        btn.innerHTML = originalBtnHTML;
-        return;
-      }
+      // 2. Eksekusi Login Google secara Native
+      const googleUser = await GoogleAuth.signIn();
+      
+      const user = {
+        google_id: googleUser.id,
+        email: googleUser.email,
+        name: googleUser.displayName || googleUser.name
+      };
+      
+      // 3. Setor data ke Backend kamu
+      await fetch(`${API_BASE_URL}/auth/google-native`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user)
+      });
+      
+      // 4. Sukses, simpan session dan bersihkan UI
+      saveUser(user);
+      closeAuthModal();
+      updateHeaderUI(user);
 
-      try {
-        // KITA KEMBALIKAN INITIALIZE-NYA (Wajib ternyata bro!)
-        await GoogleAuth.initialize({
-          clientId: GOOGLE_CLIENT_ID,
-          scopes: ['profile', 'email'],
-          grantOfflineAccess: true
-        });
-        
-        // Baru kita panggil signIn
-        const googleUser = await GoogleAuth.signIn();
-        
-        const user = {
-          google_id: googleUser.id,
-          email: googleUser.email,
-          name: googleUser.displayName || googleUser.name
-        };
-        
-        await fetch(`${API_BASE_URL}/auth/google-native`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(user)
-        });
-        
-        saveUser(user);
-        closeAuthModal();
-        updateHeaderUI(user);
-      } catch(err) {
-        console.error("Native Auth Error:", err);
-        showAuthError("Gagal masuk. Error: " + (err.message || "Dibatalkan"));
-      }
+    } catch (err) {
+      // Pembongkar Error Otomatis (Muncul Pop-up Detail di Layar HP)
+      const errorDetail = JSON.stringify(err, null, 2);
+      const errorMessage = err.message || "Tidak ada pesan teks dari SDK Google.";
+      
+      alert(
+        "🚨 DETAIL ERROR NATIVE LOGIC 🚨\n\n" + 
+        "Objek Mentah (JSON):\n" + errorDetail + 
+        "\n\nPesan Utama (Message):\n" + errorMessage
+      );
+      
+      console.error("Native Auth Error Detail:", err);
+      showAuthError("Gagal login: Periksa pop-up sistem.");
+    }
 
-    } else {
-      // ===== BROWSER / WEB =====
+  } else {
+    // ==========================================
+    // LAYER 2: PROSES BROWSER / WEB TESTING
+    // ==========================================
+    try {
       await loadGoogleScript();
       window.google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
@@ -1191,10 +1208,12 @@ async function handleGoogleLogin() {
         callback: async (tokenResponse) => {
           try {
             if (tokenResponse.error) throw new Error(tokenResponse.error);
+            
             const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
               headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
             });
             const profile = await profileRes.json();
+            
             const user = {
               google_id: profile.sub,
               email: profile.email,
@@ -1206,30 +1225,32 @@ async function handleGoogleLogin() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(user)
             });
+            
             saveUser(user);
             closeAuthModal();
             updateHeaderUI(user);
           } catch (err) {
-            console.error("Login error (browser callback):", err);
-            showAuthError("Login gagal, coba lagi");
+            console.error("Browser token callback error:", err);
+            showAuthError("Login web gagal diproses.");
           } finally {
             btn.disabled = false;
             btn.innerHTML = originalBtnHTML;
           }
         },
       }).requestAccessToken();
-      return; // Stop di sini karena callback async
-    }
+      return; // Menahan alur async agar tidak langsung lari ke bawah
 
-  } catch (err) {
-    console.error("Login outer error:", err);
-    showAuthError("Login gagal, coba lagi");
+    } catch (err) {
+      console.error("Web Initializer Error:", err);
+      showAuthError("Gagal memuat SDK Google Web.");
+    }
   }
 
-  // Reset tombol jika error (jika sukses, modal sudah tertutup)
+  // Mengembalikan tombol ke sedia kala jika alur keluar dari try/catch
   btn.disabled = false;
   btn.innerHTML = originalBtnHTML;
 }
+
     
   function handleGoogleResponse(response) {
     if (response.credential) {
