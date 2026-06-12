@@ -1,4 +1,7 @@
+import eruda from 'eruda';
 import { signInWithGoogle, getUser, signOut } from './services/auth.js';
+
+eruda.init();
 
 document.addEventListener('DOMContentLoaded', () => {
   const loginBtn = document.getElementById('loginBtn');
@@ -19,7 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // initial check
   const currentUser = getUser();
   updateUI(currentUser);
 
@@ -27,14 +29,15 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const user = await signInWithGoogle();
       updateUI(user);
+      alert(`Selamat datang ${user.displayName}`);
     } catch (err) {
-      alert('Login failed: ' + err.message);
+      alert('Login gagal: ' + err.message);
     }
   });
 
   logoutBtn?.addEventListener('click', async () => {
     await signOut();
     updateUI(null);
-    alert('Logged out');
+    alert('Logout berhasil');
   });
 });
