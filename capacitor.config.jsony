@@ -1,0 +1,12 @@
+{
+  "appId": "com.indoscore.app",
+  "appName": "indoscore",
+  "webDir": "dist",
+  "plugins": {
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "304025860925-d9bmoatf3q6it9v2shpnn358buo16tb2.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
+}
