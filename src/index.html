@@ -1086,29 +1086,26 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==================== INIT NATIVE GOOGLE AUTH (SEKALI SAJA SAAT BOOT) ====================
-  async function initNativeGoogleAuth() {
-    const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
-    if (!isNative) return; // Hanya jalan di Android/iOS, skip di web
+async function initNativeGoogleAuth() {
+  const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
+  if (!isNative) return;
 
-    const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
-    if (!GoogleAuth) {
-      console.warn("⚠️ Plugin GoogleAuth tidak ditemukan di native bridge.");
-      return;
-    }
+  const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+  if (!GoogleAuth) return;
 
-    try {
-      await GoogleAuth.initialize({
-        clientId: GOOGLE_CLIENT_ID,
-        scopes: ['profile', 'email'],
-        grantOfflineAccess: true
-      });
-      googleAuthInitialized = true;
-      console.log("✅ Native GoogleAuth berhasil di-initialize.");
-    } catch (e) {
-      console.error("❌ Native GoogleAuth initialize gagal:", e);
-    }
+  try {
+    // ✅ TIDAK pass clientId di native — biarkan strings.xml yang handle
+    await GoogleAuth.initialize({
+      scopes: ['profile', 'email'],
+      grantOfflineAccess: true
+      // clientId SENGAJA TIDAK DIISI di sini untuk native
+    });
+    googleAuthInitialized = true;
+    console.log("✅ Native GoogleAuth initialized");
+  } catch (e) {
+    console.error("❌ GoogleAuth init gagal:", e);
   }
-
+}
   // ==================== INIT WEB ONE TAP (HANYA DI BROWSER) ====================
   async function initGoogleOneTap() {
     const isNative = window.Capacitor?.isNativePlatform?.() ?? false;
